@@ -4,69 +4,64 @@ A test of Deepseek using torch.
 This is a simple prompt-response loop that maintains a conversation history in memory.
 """
 
-import colorama
-colorama.just_fix_windows_console()
+from textwrap import indent
+from typing import Tuple
 
-import torch
-from transformers import Qwen2ForCausalLM
-from transformers import LlamaTokenizerFast
+from prompt_toolkit import prompt, PromptSession
+from prompt_toolkit.styles import Style
+from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+from prompt_toolkit.key_binding.bindings.basic import load_basic_bindings
+from rich.console import Console
+from rich.markdown import Markdown
+from rich.progress import Progress
 
-TEMPERATURE = 0.7
-MAX_GENERATIONS_PER_PROMPT = 10
-MAX_TOKENS_PER_GENERATION = 1024
 
-device = torch.device("cpu")
-torch.set_default_device(device)
+session = PromptSession()
+style = Style.from_dict(
+    {
+        "user-prompt": "green bold",
+    }
+)
 
-tokenizer = LlamaTokenizerFast.from_pretrained("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B")
-model = Qwen2ForCausalLM.from_pretrained("deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B").to(dtype=torch.float16)
 
-conversation: list[dict] = []
+def split_think(s: str) -> Tuple[str, str]:
+    s1, *s2 = s.split("</think>", 1)
+    if not s2 or not s2[0]:
+        return "", s1.strip()
+    return s1.replace("<think>", "").strip(), s2[0].strip()
 
-def user_prefix():
-    return colorama.Fore.CYAN + "[user] " + colorama.Style.RESET_ALL
 
-def assistant_prefix():
-    return colorama.Fore.MAGENTA + "[assistant] " + colorama.Style.RESET_ALL
+def user_prompt() -> str:
+    return session.prompt(
+        [("class:user-prompt", "You:\n")],
+        style=style,
+        auto_suggest=AutoSuggestFromHistory(),
+        enable_history_search=True,
+    )
 
-with torch.inference_mode():
+
+if __name__ == "__main__":
+    from chat import DeepSeekChat
+
+    deepseek_chat = DeepSeekChat()
+    console = Console()
+
     while True:
-        prompt = input(user_prefix())
-        conversation.append({"role": "user", "content": prompt})
+        user_message = user_prompt()
+        deepseek_chat.add_user_message(user_message)
 
-        templated = tokenizer.apply_chat_template(conversation, tokenize=False, add_generation_prompt=True)
+        print()
+        result = ""
 
-        outputs = tokenizer(templated, return_tensors="pt")
-        
-        inference = model.generate(**outputs, temperature=TEMPERATURE, max_new_tokens=MAX_TOKENS_PER_GENERATION, pad_token_id=tokenizer.eos_token_id, do_sample=True)
-        response: str = tokenizer.decode(inference[0][len(outputs["input_ids"][0]):])
+        with Progress(transient=True) as progress:
+            progress.add_task("Generating...", total=None)
+            for response in deepseek_chat.generate():
+                result += response
 
-        conversation.append({"role": "assistant", "content": response})
+        think, result = split_think(result)
+        if think:
+            result = f"{indent(think, ">")}\n\n{result}\n"
 
-        if response.endswith(tokenizer.eos_token):
-            conversation[-1]["content"] = response[:-len(tokenizer.eos_token)]
-            print(f"{assistant_prefix()}{conversation[-1]['content']}")
-            continue
-
-        print(f"{assistant_prefix()}{response}", end="")
-
-        num_generations = 0
-
-        while num_generations < MAX_GENERATIONS_PER_PROMPT:
-            num_generations += 1
-            templated = tokenizer.apply_chat_template(conversation, tokenize=False, continue_final_message=True)
-
-            outputs = tokenizer(templated, return_tensors="pt")
-
-            inference = model.generate(**outputs, temperature=TEMPERATURE, max_new_tokens=MAX_TOKENS_PER_GENERATION, pad_token_id=tokenizer.eos_token_id, do_sample=True)
-            added_response = tokenizer.decode(inference[0][len(outputs["input_ids"][0]):])
-
-            if added_response.endswith(tokenizer.eos_token):
-                trimmed = added_response[:-len(tokenizer.eos_token)]
-                conversation[-1]["content"] += trimmed
-                print(trimmed, end="")
-                break
-            
-            conversation[-1]["content"] += added_response
-        
+        console.print("DeepSeek: ", style="bold blue")
+        console.print(Markdown(result))
         print()
