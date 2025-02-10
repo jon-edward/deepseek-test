@@ -1,17 +1,18 @@
 """
-A high level implementation of chat functionality for Deepseek.
+A high level implementation of chat functionality for DeepSeek.
 """
 
 import dataclasses
-from typing import TypedDict, Literal, Generator, Tuple
+from typing import Iterable, TypedDict, Literal, Generator, Tuple
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from template import template
 
-_device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-torch.set_default_device(_device)
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+torch.set_default_device(device)
 
 
 class Message(TypedDict):
@@ -26,10 +27,8 @@ class Message(TypedDict):
 @dataclasses.dataclass
 class DeepSeekChat:
     """
-    A high level implementation of chat functionality for Deepseek.
+    A high level implementation of chat functionality for DeepSeek.
     """
-
-    chat: list[Message] = dataclasses.field(default_factory=list)
 
     temperature: float = 0.7
 
@@ -39,9 +38,34 @@ class DeepSeekChat:
     recall_messages: int = 15
     model_ident: str = "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
 
+    chat: list[Message] = dataclasses.field(default_factory=list, init=False)
+
     # Lazy properties
     _model: AutoModelForCausalLM | None = None
     _tokenizer: AutoTokenizer | None = None
+
+    @property
+    def recalled_chat(self) -> Iterable[Message]:
+        """
+        Get the chat history that can be recalled by the model.
+        This also removes any </think> tags from the messages.
+        """
+
+        recall_messages = self.recall_messages
+        if self.recall_messages is None:
+            recall_messages = len(self.chat)
+
+        return [
+            {
+                "role": message["role"],
+                "content": (
+                    message["content"].split("</think>", 1)[-1]
+                    if message["role"] == "assistant"
+                    else message["content"]
+                ),
+            }
+            for message in self.chat[-recall_messages:]
+        ]
 
     @property
     def model(self) -> AutoModelForCausalLM:
@@ -51,8 +75,10 @@ class DeepSeekChat:
 
         if self._model is None:
             self._model = AutoModelForCausalLM.from_pretrained(
-                self.model_ident, torch_dtype=torch.float16, low_cpu_mem_usage=True
-            ).to(_device)
+                self.model_ident,
+                torch_dtype=torch.float16,
+                low_cpu_mem_usage=True,
+            ).to(device)
         return self._model
 
     @property
@@ -98,10 +124,8 @@ class DeepSeekChat:
         Perform a single generation. Returns whether the generation should continue and the generated text.
         """
 
-        recall_messages = self.recall_messages or len(self.chat)
-
         outputs = self.tokenizer.apply_chat_template(
-            self.chat[-recall_messages:],
+            self.recalled_chat,
             add_generation_prompt=not continued,
             continue_final_message=continued,
             return_dict=True,

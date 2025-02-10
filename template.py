@@ -1,5 +1,5 @@
 """
-Jinja2 template for Deepseek chat generation.
+Jinja2 template for DeepSeek chat generation.
 """
 
 import textwrap

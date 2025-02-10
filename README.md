@@ -28,7 +28,7 @@ This will initiate the conversational AI loop, where you can input messages and 
 
 ### Project Details
 
-- The project utilizes a locally run [`deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`](https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B) model from the Hugging Face model hub. To use a different model, simply modify the `model_ident` parameter in the DeepseekChat class.
+- The project utilizes a locally run [`deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B`](https://huggingface.co/deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B) model from the Hugging Face model hub. To use a different model, simply modify the `model_ident` parameter in the DeepSeekChat class.
 
 - This project is intended for educational purposes only and should not be used in production without further modifications.
 
