@@ -80,18 +80,11 @@ def user_prompt() -> str:
     )
 
 
-theme = Theme(
-    {
-        "think": "grey62 bold",
-    }
-)
-
-
 if __name__ == "__main__":
     from chat import DeepSeekChat
 
     deepseek_chat = DeepSeekChat()
-    console = Console(theme=theme)
+    console = Console()
 
     while True:
         user_message = user_prompt()
