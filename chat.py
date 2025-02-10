@@ -48,24 +48,26 @@ class DeepSeekChat:
     def recalled_chat(self) -> Iterable[Message]:
         """
         Get the chat history that can be recalled by the model.
-        This also removes any </think> tags from the messages.
+        
+        This also removes any </think> tags from all but the last assistant message.
         """
 
         recall_messages = self.recall_messages
         if self.recall_messages is None:
             recall_messages = len(self.chat)
 
-        return [
-            {
-                "role": message["role"],
-                "content": (
+        messages = [
+            {"role": message["role"], "content": (
                     message["content"].split("</think>", 1)[-1]
                     if message["role"] == "assistant"
                     else message["content"]
                 ),
             }
-            for message in self.chat[-recall_messages:]
+            for message in self.chat[-recall_messages:-1]
         ]
+
+        messages.append(self.chat[-1])
+        return messages
 
     @property
     def model(self) -> AutoModelForCausalLM:
