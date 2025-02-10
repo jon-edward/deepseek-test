@@ -48,7 +48,7 @@ class DeepSeekChat:
     def recalled_chat(self) -> Iterable[Message]:
         """
         Get the chat history that can be recalled by the model.
-        
+
         This also removes any </think> tags from all but the last assistant message.
         """
 
@@ -57,7 +57,9 @@ class DeepSeekChat:
             recall_messages = len(self.chat)
 
         messages = [
-            {"role": message["role"], "content": (
+            {
+                "role": message["role"],
+                "content": (
                     message["content"].split("</think>", 1)[-1]
                     if message["role"] == "assistant"
                     else message["content"]
